@@ -10,12 +10,12 @@ from datetime import datetime
 from typing import List, Dict, Any
 
 from django.conf import settings
-from rest_framework import status
-from rest_framework.response import Response
-from rest_framework.views import APIView
+from django.http import JsonResponse
+from django.views import View
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 
 from .models import MediaFile, UploadBatch
-from .serializers import MediaFileSerializer
 from .file_detector import file_detector
 from .ai_analyzer import ai_analyzer
 from .file_organizer import file_organizer
@@ -23,7 +23,8 @@ from .file_organizer import file_organizer
 logger = logging.getLogger(__name__)
 
 
-class UnifiedFileUploadView(APIView):
+@method_decorator(csrf_exempt, name='dispatch')
+class UnifiedFileUploadView(View):
     """
     Unified file upload endpoint that handles both single and multiple files.
 
@@ -53,15 +54,15 @@ class UnifiedFileUploadView(APIView):
         multiple_files = request.FILES.getlist('files')
 
         if not single_file and not multiple_files:
-            return Response(
+            return JsonResponse(
                 {'error': 'No files provided. Use "file" for single or "files" for multiple.'},
-                status=status.HTTP_400_BAD_REQUEST
+                status=400
             )
 
         # Get optional parameters
-        user_comment = request.data.get('user_comment', '')
-        file_search_store_id = request.data.get('file_search_store')
-        auto_index = request.data.get('auto_index', 'false').lower() == 'true'
+        user_comment = request.POST.get('user_comment', '')
+        file_search_store_id = request.POST.get('file_search_store')
+        auto_index = request.POST.get('auto_index', 'false').lower() == 'true'
 
         # Prepare files list
         files_to_process = [single_file] if single_file else multiple_files
@@ -98,20 +99,25 @@ class UnifiedFileUploadView(APIView):
             if auto_index and file_search_store_id:
                 self._index_file(media_file, file_search_store_id)
 
-            return Response(
+            return JsonResponse(
                 {
                     'success': True,
-                    'file': MediaFileSerializer(media_file).data,
+                    'file': {
+                        'id': media_file.id,
+                        'name': media_file.original_name,
+                        'type': media_file.detected_type,
+                        'size': media_file.file_size,
+                    },
                     'message': f'File uploaded and organized in {media_file.storage_category}/{media_file.storage_subcategory}/'
                 },
-                status=status.HTTP_201_CREATED
+                status=201
             )
 
         except Exception as e:
             logger.error(f"File upload failed: {str(e)}")
-            return Response(
+            return JsonResponse(
                 {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=500
             )
 
     def _process_batch_files(self, files, user_comment='',
@@ -162,7 +168,7 @@ class UnifiedFileUploadView(APIView):
         batch.status = 'completed' if failed == 0 else 'partial'
         batch.save()
 
-        return Response(
+        return JsonResponse(
             {
                 'success': True,
                 'batch_id': batch.batch_id,
@@ -171,7 +177,7 @@ class UnifiedFileUploadView(APIView):
                 'failed': failed,
                 'results': results,
             },
-            status=status.HTTP_201_CREATED
+            status=201
         )
 
     def _save_and_organize_file(self, uploaded_file, user_comment=''):

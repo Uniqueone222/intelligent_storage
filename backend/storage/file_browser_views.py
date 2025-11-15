@@ -9,9 +9,10 @@ from django.views.generic import ListView, TemplateView
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils.decorators import method_decorator
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
 from pathlib import Path
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 import os
 
 from .models import MediaFile
@@ -45,13 +46,14 @@ class FileBrowserView(TemplateView):
             'other': 'others',
         }
 
-        # Get files for selected category
+        # Get files for selected category (exclude deleted files)
         if category == 'all':
-            files = MediaFile.objects.all().order_by('-uploaded_at')[:100]
+            files = MediaFile.objects.filter(is_deleted=False).order_by('-uploaded_at')[:100]
         else:
             db_category = category_map.get(category, category)
             files = MediaFile.objects.filter(
-                detected_type=db_category
+                detected_type=db_category,
+                is_deleted=False
             ).order_by('-uploaded_at')[:100]
 
         context['files'] = files
@@ -71,7 +73,6 @@ class FileBrowserView(TemplateView):
         return context
 
 
-@api_view(['GET'])
 def file_browser_api(request):
     """
     API endpoint to browse files by category.
@@ -98,13 +99,15 @@ def file_browser_api(request):
         'other': 'others',
     }
 
-    # Get files
-    if category == 'all':
-        files = MediaFile.objects.all()
+    # Get files (exclude deleted files unless viewing trash)
+    if category == 'trash':
+        files = MediaFile.objects.filter(is_deleted=True)
+    elif category == 'all':
+        files = MediaFile.objects.filter(is_deleted=False)
     else:
         # Use mapped plural form for database query
         db_category = category_map.get(category, category)
-        files = MediaFile.objects.filter(detected_type=db_category)
+        files = MediaFile.objects.filter(detected_type=db_category, is_deleted=False)
 
     # Pagination
     total_count = files.count()
@@ -140,7 +143,7 @@ def file_browser_api(request):
             'preview_url': f'/media/{file.relative_path}' if file.relative_path else None,
         })
 
-    return Response({
+    return JsonResponse({
         'files': files_data,
         'total_count': total_count,
         'limit': limit,
@@ -149,7 +152,6 @@ def file_browser_api(request):
     })
 
 
-@api_view(['GET'])
 def folder_stats_api(request):
     """Get statistics for all file type folders."""
     stats = file_organizer.get_folder_stats()
@@ -161,13 +163,16 @@ def folder_stats_api(request):
         'size_mb': sum(s['size_mb'] for s in stats.values()),
     }
 
-    return Response({
+    # Add trash count
+    trash_count = MediaFile.objects.filter(is_deleted=True).count()
+
+    return JsonResponse({
         'by_type': stats,
         'total': total,
+        'trash': trash_count,
     })
 
 
-@api_view(['GET'])
 def download_file(request, file_id):
     """Download a file by ID."""
     try:
@@ -189,7 +194,6 @@ def download_file(request, file_id):
         raise Http404('File not found in database')
 
 
-@api_view(['GET'])
 def preview_file(request, file_id):
     """Preview a file (for images, PDFs, etc.)."""
     try:
@@ -209,3 +213,99 @@ def preview_file(request, file_id):
 
     except MediaFile.DoesNotExist:
         raise Http404('File not found in database')
+
+
+@csrf_exempt
+@require_http_methods(["DELETE", "POST"])
+def delete_file(request, file_id):
+    """Move file to trash (soft delete)."""
+    try:
+        media_file = MediaFile.objects.get(id=file_id)
+
+        # Soft delete - move to trash
+        media_file.is_deleted = True
+        media_file.deleted_at = timezone.now()
+        media_file.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'File "{media_file.original_name}" moved to trash'
+        })
+
+    except MediaFile.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'File not found in database'
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE", "POST"])
+def permanent_delete_file(request, file_id):
+    """Permanently delete a file from trash."""
+    try:
+        media_file = MediaFile.objects.get(id=file_id, is_deleted=True)
+
+        # Delete physical file from disk
+        if media_file.file_path and os.path.exists(media_file.file_path):
+            try:
+                os.remove(media_file.file_path)
+            except OSError as e:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Failed to delete physical file: {str(e)}'
+                }, status=500)
+
+        # Delete database record permanently
+        file_name = media_file.original_name
+        media_file.delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'File "{file_name}" permanently deleted'
+        })
+
+    except MediaFile.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'File not found in trash'
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def restore_file(request, file_id):
+    """Restore a file from trash."""
+    try:
+        media_file = MediaFile.objects.get(id=file_id, is_deleted=True)
+
+        # Restore file
+        media_file.is_deleted = False
+        media_file.deleted_at = None
+        media_file.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'File "{media_file.original_name}" restored'
+        })
+
+    except MediaFile.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'File not found in trash'
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

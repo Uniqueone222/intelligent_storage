@@ -138,6 +138,10 @@ class MediaFile(models.Model):
     is_indexed = models.BooleanField(default=False, help_text="Whether file has been indexed for search")
     indexed_at = models.DateTimeField(null=True, blank=True, help_text="When file was indexed")
 
+    # Trash/Recycle Bin
+    is_deleted = models.BooleanField(default=False, help_text="Soft delete - moved to trash")
+    deleted_at = models.DateTimeField(null=True, blank=True, help_text="When file was moved to trash")
+
     # Metadata
     uploaded_at = models.DateTimeField(auto_now_add=True)
     processed_at = models.DateTimeField(auto_now=True)
@@ -148,6 +152,8 @@ class MediaFile(models.Model):
             models.Index(fields=['detected_type']),
             models.Index(fields=['storage_category']),
             models.Index(fields=['uploaded_at']),
+            models.Index(fields=['is_deleted']),
+            models.Index(fields=['deleted_at']),
         ]
 
     def __str__(self):

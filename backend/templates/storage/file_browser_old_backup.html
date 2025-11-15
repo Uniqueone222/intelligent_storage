@@ -363,11 +363,6 @@
                         <span>Others</span>
                         <span class="count" id="count-other">0</span>
                     </div>
-                    <div class="category-item" data-category="trash" style="margin-top: 20px; border-top: 1px solid #2a2a2a; padding-top: 20px;">
-                        <span class="icon">🗑️</span>
-                        <span>Trash</span>
-                        <span class="count" id="count-trash">0</span>
-                    </div>
                 </div>
             </div>
 
@@ -448,11 +443,6 @@
                 // Update "all" count
                 document.getElementById('count-all').textContent = data.total.count;
 
-                // Update trash count
-                if (data.trash !== undefined) {
-                    document.getElementById('count-trash').textContent = data.trash;
-                }
-
             } catch (error) {
                 console.error('Error loading stats:', error);
             }
@@ -499,9 +489,6 @@
                     preview = `<div class="file-icon">${icon}</div>`;
                 }
 
-                // Different actions for trash vs normal files
-                const isTrash = currentCategory === 'trash';
-
                 return `
                     <div class="file-card" id="file-${file.id}">
                         ${preview}
@@ -511,24 +498,15 @@
                             <div>${date}</div>
                             ${file.is_indexed ? '<div style="color: #10b981;">✓ Indexed</div>' : ''}
                         </div>
-                        ${isTrash ? `
-                            <div class="file-actions">
-                                <button class="btn btn-primary" onclick="restoreFile(${file.id}, '${file.name.replace(/'/g, "\\'")}')">↩️ Restore</button>
-                            </div>
-                            <div class="file-actions" style="margin-top: 5px;">
-                                <button class="btn btn-danger" onclick="permanentDeleteFile(${file.id}, '${file.name.replace(/'/g, "\\'")}')">🔥 Delete Forever</button>
-                            </div>
-                        ` : `
-                            <div class="file-actions">
-                                <button class="btn btn-primary" onclick="downloadFile(${file.id})">📥 Download</button>
-                                ${file.type === 'image' || file.type === 'document' ?
-                                    `<button class="btn btn-secondary" onclick="previewFile(${file.id})">👁️ Preview</button>` :
-                                    ''}
-                            </div>
-                            <div class="file-actions" style="margin-top: 5px;">
-                                <button class="btn btn-danger" onclick="deleteFile(${file.id}, '${file.name.replace(/'/g, "\\'")}')">🗑️ Delete</button>
-                            </div>
-                        `}
+                        <div class="file-actions">
+                            <button class="btn btn-primary" onclick="downloadFile(${file.id})">📥 Download</button>
+                            ${file.type === 'image' || file.type === 'document' ?
+                                `<button class="btn btn-secondary" onclick="previewFile(${file.id})">👁️ Preview</button>` :
+                                ''}
+                        </div>
+                        <div class="file-actions" style="margin-top: 5px;">
+                            <button class="btn btn-danger" onclick="deleteFile(${file.id}, '${file.name.replace(/'/g, "\\'")}')">🗑️ Delete</button>
+                        </div>
                     </div>
                 `;
             }).join('');
@@ -554,23 +532,18 @@
             window.open(`/files/api/preview/${fileId}/`, '_blank');
         }
 
-        // Delete file (move to trash)
+        // Delete file
         async function deleteFile(fileId, fileName) {
-            if (!confirm(`Move "${fileName}" to trash?`)) {
+            if (!confirm(`Are you sure you want to delete "${fileName}"?\n\nThis action cannot be undone.`)) {
                 return;
             }
 
             try {
                 const response = await fetch(`/files/api/delete/${fileId}/`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
+                    method: 'DELETE'
                 });
 
-                const result = await response.json();
-
-                if (response.ok && result.success) {
+                if (response.ok) {
                     // Remove from UI
                     const fileCard = document.getElementById(`file-${fileId}`);
                     if (fileCard) {
@@ -587,98 +560,14 @@
                     // Reload stats
                     loadStats();
 
-                    console.log(`✓ Moved to trash: ${fileName}`);
+                    console.log(`✓ Deleted: ${fileName}`);
                 } else {
-                    alert(`Failed to delete file: ${result.error || 'Unknown error'}`);
-                    console.error('Delete failed:', result);
+                    const error = await response.json();
+                    alert(`Failed to delete file: ${error.error || 'Unknown error'}`);
                 }
             } catch (error) {
                 console.error('Delete error:', error);
-                alert(`Failed to delete file: ${error.message}`);
-            }
-        }
-
-        // Permanently delete file from trash
-        async function permanentDeleteFile(fileId, fileName) {
-            if (!confirm(`PERMANENTLY DELETE "${fileName}"?\n\nThis action CANNOT be undone!\n\nThe file will be deleted from disk forever.`)) {
-                return;
-            }
-
-            try {
-                const response = await fetch(`/files/api/permanent-delete/${fileId}/`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                });
-
-                const result = await response.json();
-
-                if (response.ok && result.success) {
-                    // Remove from UI
-                    const fileCard = document.getElementById(`file-${fileId}`);
-                    if (fileCard) {
-                        fileCard.style.opacity = '0';
-                        fileCard.style.transform = 'scale(0.8)';
-                        setTimeout(() => {
-                            fileCard.remove();
-                        }, 300);
-                    }
-
-                    // Remove from allFiles array
-                    allFiles = allFiles.filter(f => f.id !== fileId);
-
-                    // Reload stats
-                    loadStats();
-
-                    console.log(`✓ Permanently deleted: ${fileName}`);
-                } else {
-                    alert(`Failed to permanently delete file: ${result.error || 'Unknown error'}`);
-                    console.error('Permanent delete failed:', result);
-                }
-            } catch (error) {
-                console.error('Permanent delete error:', error);
-                alert(`Failed to permanently delete file: ${error.message}`);
-            }
-        }
-
-        // Restore file from trash
-        async function restoreFile(fileId, fileName) {
-            try {
-                const response = await fetch(`/files/api/restore/${fileId}/`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                });
-
-                const result = await response.json();
-
-                if (response.ok && result.success) {
-                    // Remove from UI
-                    const fileCard = document.getElementById(`file-${fileId}`);
-                    if (fileCard) {
-                        fileCard.style.opacity = '0';
-                        fileCard.style.transform = 'scale(0.8)';
-                        setTimeout(() => {
-                            fileCard.remove();
-                        }, 300);
-                    }
-
-                    // Remove from allFiles array
-                    allFiles = allFiles.filter(f => f.id !== fileId);
-
-                    // Reload stats
-                    loadStats();
-
-                    console.log(`✓ Restored: ${fileName}`);
-                } else {
-                    alert(`Failed to restore file: ${result.error || 'Unknown error'}`);
-                    console.error('Restore failed:', result);
-                }
-            } catch (error) {
-                console.error('Restore error:', error);
-                alert(`Failed to restore file: ${error.message}`);
+                alert('Failed to delete file. Please try again.');
             }
         }
 

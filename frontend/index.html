@@ -28,6 +28,7 @@
                     <span class="logo-text">Intelligent Storage</span>
                 </div>
                 <div class="nav-links">
+                    <a href="http://localhost:8000/files/browse/" class="nav-link">File Browser</a>
                     <a href="#upload" class="nav-link">Upload</a>
                     <a href="#search" class="nav-link">Search</a>
                     <a href="#json" class="nav-link">JSON Data</a>
@@ -54,14 +55,14 @@
                     extracts insights, and makes everything searchable with AI.
                 </p>
                 <div class="hero-actions">
-                    <button class="btn-large btn-primary" onclick="scrollToSection('upload')">
-                        Start Uploading
+                    <button class="btn-large btn-primary" onclick="window.location.href='http://localhost:8000/files/browse/'">
+                        Browse Files
                         <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                             <path d="M7.5 15L12.5 10L7.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                     </button>
-                    <button class="btn-large btn-secondary" onclick="scrollToSection('search')">
-                        Search Files
+                    <button class="btn-large btn-secondary" onclick="scrollToSection('upload')">
+                        Upload Files
                     </button>
                 </div>
                 <div class="hero-stats">
