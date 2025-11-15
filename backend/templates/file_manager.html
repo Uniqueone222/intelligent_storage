@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart File Manager - Drive</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 2rem;
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        /* Main Container */
+        .container {
+            display: flex;
+            height: calc(100vh - 100px);
+            padding: 1rem;
+            gap: 1rem;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+
+        .sidebar h2 {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            color: #667eea;
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .folder-list {
+            list-style: none;
+        }
+
+        .folder-item {
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .folder-item:hover {
+            background: #f0f0f0;
+        }
+
+        .folder-item.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .folder-name {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .folder-icon {
+            font-size: 1.2rem;
+        }
+
+        .folder-count {
+            background: rgba(0,0,0,0.1);
+            padding: 0.2rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+
+        .content-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .content-title {
+            font-size: 1.5rem;
+            color: #333;
+        }
+
+        .view-controls {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .view-btn {
+            padding: 0.5rem 1rem;
+            border: 2px solid #e0e0e0;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .view-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        /* Grid View */
+        .files-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .file-card {
+            background: #f9f9f9;
+            border-radius: 12px;
+            padding: 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+
+        .file-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            border-color: #667eea;
+        }
+
+        .file-preview {
+            width: 100%;
+            height: 140px;
+            background: #e0e0e0;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 0.75rem;
+            overflow: hidden;
+        }
+
+        .file-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .file-icon {
+            font-size: 3rem;
+        }
+
+        .file-name {
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-size {
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        /* List View */
+        .files-list {
+            display: none;
+        }
+
+        .files-list.active {
+            display: block;
+        }
+
+        .files-grid.active {
+            display: grid;
+        }
+
+        .file-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .file-row:hover {
+            background: #f9f9f9;
+        }
+
+        .file-row-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex: 1;
+        }
+
+        .file-row-preview {
+            width: 50px;
+            height: 50px;
+            background: #e0e0e0;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .file-row-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+
+        .file-row-details {
+            flex: 1;
+        }
+
+        .file-row-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .action-btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: #667eea;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            background: #5568d3;
+        }
+
+        .action-btn.danger {
+            background: #dc3545;
+        }
+
+        .action-btn.danger:hover {
+            background: #c82333;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            font-size: 1.2rem;
+            color: #999;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 2rem;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .modal-close {
+            font-size: 2rem;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .modal-close:hover {
+            color: #333;
+        }
+
+        .file-details {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem;
+            background: #f9f9f9;
+            border-radius: 8px;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                margin-bottom: 1rem;
+            }
+
+            .files-grid {
+                grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <h1>📁 Smart File Manager</h1>
+        <div class="header-stats">
+            <span id="total-files">0 files</span>
+            <span id="total-size">0 B</span>
+            <span id="total-folders">0 folders</span>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <h2>📂 Smart Folders</h2>
+            <input type="text" class="search-box" id="search-input" placeholder="🔍 Search files...">
+
+            <ul class="folder-list" id="folder-list">
+                <li class="loading">
+                    <div class="spinner"></div>
+                    Loading folders...
+                </li>
+            </ul>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="content-header">
+                <h2 class="content-title" id="content-title">All Files</h2>
+                <div class="view-controls">
+                    <button class="view-btn active" data-view="grid">🔲 Grid</button>
+                    <button class="view-btn" data-view="list">📄 List</button>
+                </div>
+            </div>
+
+            <div class="files-grid active" id="files-grid">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading files...
+                </div>
+            </div>
+
+            <div class="files-list" id="files-list"></div>
+        </div>
+    </div>
+
+    <!-- File Details Modal -->
+    <div class="modal" id="file-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">File Details</h2>
+                <span class="modal-close" onclick="closeModal()">×</span>
+            </div>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE = '/api/filemanager';
+        let currentToken = localStorage.getItem('admin_token') || '';
+        let currentCategory = null;
+        let currentView = 'grid';
+        let allFolders = [];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check for token
+            if (!currentToken) {
+                currentToken = prompt('Please enter your admin token:');
+                if (currentToken) {
+                    localStorage.setItem('admin_token', currentToken);
+                } else {
+                    alert('Token required to access file manager');
+                    return;
+                }
+            }
+
+            loadFolders();
+            setupEventListeners();
+        });
+
+        // Setup Event Listeners
+        function setupEventListeners() {
+            // View toggle
+            document.querySelectorAll('.view-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const view = e.target.dataset.view;
+                    switchView(view);
+                });
+            });
+
+            // Search
+            document.getElementById('search-input').addEventListener('input', (e) => {
+                const query = e.target.value;
+                if (query.length >= 2) {
+                    searchFiles(query);
+                } else if (query.length === 0) {
+                    loadFolders();
+                }
+            });
+        }
+
+        // Load Folders
+        async function loadFolders() {
+            try {
+                const response = await fetch(`${API_BASE}/folders/`, {
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    allFolders = data.folders;
+                    renderFolders(data.folders);
+                    updateStats(data.summary);
+
+                    // Load first folder by default
+                    if (data.folders.length > 0) {
+                        loadCategory(data.folders[0].category);
+                    }
+                } else {
+                    showError('Failed to load folders: ' + data.error);
+                }
+            } catch (error) {
+                showError('Error loading folders: ' + error.message);
+            }
+        }
+
+        // Render Folders
+        function renderFolders(folders) {
+            const folderList = document.getElementById('folder-list');
+
+            if (folders.length === 0) {
+                folderList.innerHTML = '<div class="empty-state">No folders found</div>';
+                return;
+            }
+
+            folderList.innerHTML = folders.map(folder => `
+                <li class="folder-item" onclick="loadCategory('${folder.category}')">
+                    <div class="folder-name">
+                        <span class="folder-icon">${getFolderIcon(folder.category)}</span>
+                        <span>${folder.category}</span>
+                    </div>
+                    <span class="folder-count">${folder.file_count}</span>
+                </li>
+            `).join('');
+        }
+
+        // Load Category
+        async function loadCategory(category) {
+            currentCategory = category;
+
+            // Update active state
+            document.querySelectorAll('.folder-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.currentTarget?.classList.add('active');
+
+            document.getElementById('content-title').textContent = category;
+
+            try {
+                const response = await fetch(`${API_BASE}/category/${category}/`, {
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    renderFiles(data.files);
+                } else {
+                    showError('Failed to load files: ' + data.error);
+                }
+            } catch (error) {
+                showError('Error loading files: ' + error.message);
+            }
+        }
+
+        // Render Files
+        function renderFiles(files) {
+            const gridContainer = document.getElementById('files-grid');
+            const listContainer = document.getElementById('files-list');
+
+            if (files.length === 0) {
+                gridContainer.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div>No files in this category</div>';
+                listContainer.innerHTML = '';
+                return;
+            }
+
+            // Grid View
+            gridContainer.innerHTML = files.map(file => `
+                <div class="file-card" onclick="showFileDetails('${file.path}')">
+                    <div class="file-preview">
+                        ${file.category.includes('photo') || file.category.includes('gif') || file.category.includes('webp') ?
+                            `<img src="${API_BASE}/thumbnail/${file.path}?size=medium" alt="${file.name}">` :
+                            `<div class="file-icon">${getFileIcon(file.extension)}</div>`
+                        }
+                    </div>
+                    <div class="file-name" title="${file.name}">${file.name}</div>
+                    <div class="file-size">${file.size_human}</div>
+                </div>
+            `).join('');
+
+            // List View
+            listContainer.innerHTML = files.map(file => `
+                <div class="file-row">
+                    <div class="file-row-info">
+                        <div class="file-row-preview">
+                            ${file.category.includes('photo') || file.category.includes('gif') || file.category.includes('webp') ?
+                                `<img src="${API_BASE}/thumbnail/${file.path}?size=small" alt="${file.name}">` :
+                                `<div class="file-icon">${getFileIcon(file.extension)}</div>`
+                            }
+                        </div>
+                        <div class="file-row-details">
+                            <div class="file-name">${file.name}</div>
+                            <div class="file-size">${file.size_human} • ${new Date(file.modified).toLocaleDateString()}</div>
+                        </div>
+                    </div>
+                    <div class="file-row-actions">
+                        <button class="action-btn" onclick="downloadFile('${file.path}', '${file.name}')">⬇️ Download</button>
+                        <button class="action-btn danger" onclick="deleteFile('${file.path}', '${file.name}')">🗑️ Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Search Files
+        async function searchFiles(query) {
+            try {
+                const response = await fetch(`${API_BASE}/search/?q=${encodeURIComponent(query)}`, {
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('content-title').textContent = `Search: "${query}" (${data.count} results)`;
+                    renderFiles(data.results);
+                }
+            } catch (error) {
+                showError('Search error: ' + error.message);
+            }
+        }
+
+        // Show File Details
+        async function showFileDetails(filePath) {
+            try {
+                const response = await fetch(`${API_BASE}/file/${filePath}/`, {
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const file = data.file;
+                    const modalBody = document.getElementById('modal-body');
+
+                    modalBody.innerHTML = `
+                        ${file.is_image ? `
+                            <div style="margin-bottom: 1.5rem; text-align: center;">
+                                <img src="${API_BASE}/download/${filePath}" style="max-width: 100%; border-radius: 8px;">
+                            </div>
+                        ` : ''}
+
+                        <div class="file-details">
+                            <div class="detail-row">
+                                <span class="detail-label">Name:</span>
+                                <span>${file.name}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Category:</span>
+                                <span>${file.category}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Size:</span>
+                                <span>${file.size_human}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Created:</span>
+                                <span>${new Date(file.created).toLocaleString()}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Modified:</span>
+                                <span>${new Date(file.modified).toLocaleString()}</span>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 0.5rem; margin-top: 1.5rem;">
+                            <button class="action-btn" onclick="downloadFile('${filePath}', '${file.name}')" style="flex: 1;">⬇️ Download</button>
+                            <button class="action-btn danger" onclick="deleteFile('${filePath}', '${file.name}')" style="flex: 1;">🗑️ Delete</button>
+                        </div>
+                    `;
+
+                    document.getElementById('modal-title').textContent = file.name;
+                    document.getElementById('file-modal').classList.add('active');
+                }
+            } catch (error) {
+                showError('Error loading file details: ' + error.message);
+            }
+        }
+
+        // Download File
+        function downloadFile(filePath, fileName) {
+            const url = `${API_BASE}/download/${filePath}/`;
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = fileName;
+            link.click();
+        }
+
+        // Delete File
+        async function deleteFile(filePath, fileName) {
+            if (!confirm(`Are you sure you want to delete "${fileName}"?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/delete/${filePath}/`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('File deleted successfully');
+                    closeModal();
+                    if (currentCategory) {
+                        loadCategory(currentCategory);
+                    }
+                    loadFolders(); // Refresh folder counts
+                } else {
+                    showError('Failed to delete file: ' + data.error);
+                }
+            } catch (error) {
+                showError('Error deleting file: ' + error.message);
+            }
+        }
+
+        // Switch View
+        function switchView(view) {
+            currentView = view;
+
+            document.querySelectorAll('.view-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.view === view);
+            });
+
+            document.getElementById('files-grid').classList.toggle('active', view === 'grid');
+            document.getElementById('files-list').classList.toggle('active', view === 'list');
+        }
+
+        // Update Stats
+        function updateStats(summary) {
+            document.getElementById('total-files').textContent = `${summary.total_files} files`;
+            document.getElementById('total-size').textContent = summary.total_size_human;
+            document.getElementById('total-folders').textContent = `${summary.total_folders} folders`;
+        }
+
+        // Close Modal
+        function closeModal() {
+            document.getElementById('file-modal').classList.remove('active');
+        }
+
+        // Show Error
+        function showError(message) {
+            alert('Error: ' + message);
+            console.error(message);
+        }
+
+        // Get Folder Icon
+        function getFolderIcon(category) {
+            const icons = {
+                'photos': '📸',
+                'gifs': '🎬',
+                'videos_mp4': '🎥',
+                'videos_mov': '🎥',
+                'audio_music': '🎵',
+                'html': '🌐',
+                'javascript': '⚡',
+                'python': '🐍',
+                'pdf': '📄',
+                'zip': '📦',
+                'json': '📊',
+                'default': '📁'
+            };
+            return icons[category] || icons.default;
+        }
+
+        // Get File Icon
+        function getFileIcon(extension) {
+            const icons = {
+                '.jpg': '🖼️', '.jpeg': '🖼️', '.png': '🖼️',
+                '.gif': '🎬', '.mp4': '🎥', '.mp3': '🎵',
+                '.html': '🌐', '.css': '🎨', '.js': '⚡',
+                '.py': '🐍', '.pdf': '📄', '.zip': '📦',
+                '.json': '📊', '.xml': '📋', '.txt': '📝',
+                'default': '📄'
+            };
+            return icons[extension] || icons.default;
+        }
+
+        // Close modal on outside click
+        document.getElementById('file-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'file-modal') {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,161 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database (for SQL storage)
+  postgres:
+    image: postgres:15-alpine
+    container_name: intelligent_storage_postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=intelligent_storage_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres123
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MongoDB Database (for NoSQL storage)
+  mongodb:
+    image: mongo:7.0
+    container_name: intelligent_storage_mongodb
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=admin123
+      - MONGO_INITDB_DATABASE=intelligent_storage_nosql
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis (for Celery task queue and caching)
+  redis:
+    image: redis:7-alpine
+    container_name: intelligent_storage_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Django Backend
+  backend:
+    build: ./backend
+    container_name: intelligent_storage_backend
+    command: >
+      sh -c "python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - ./backend:/app
+      - media_files:/app/media
+    ports:
+      - "8000:8000"
+    environment:
+      # Database Settings
+      - POSTGRES_NAME=intelligent_storage_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres123
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+
+      # MongoDB Settings
+      - MONGODB_HOST=mongodb
+      - MONGODB_PORT=27017
+      - MONGODB_USER=admin
+      - MONGODB_PASSWORD=admin123
+      - MONGODB_DB=intelligent_storage_nosql
+
+      # Redis Settings
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+
+      # Ollama Settings (assumes running on host)
+      - OLLAMA_HOST=http://host.docker.internal:11434
+      - OLLAMA_MODEL=llama3:latest
+
+      # Django Settings
+      - DJANGO_SECRET_KEY=django-insecure-change-this-in-production
+      - DJANGO_DEBUG=True
+      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
+
+      # OAuth Settings (to be filled by user)
+      - GOOGLE_OAUTH_CLIENT_ID=your_google_client_id
+      - GOOGLE_OAUTH_CLIENT_SECRET=your_google_client_secret
+      - GITHUB_OAUTH_CLIENT_ID=your_github_client_id
+      - GITHUB_OAUTH_CLIENT_SECRET=your_github_client_secret
+
+      # File Upload Settings
+      - MAX_UPLOAD_SIZE=2147483648
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # Celery Worker (for async tasks like AI analysis)
+  celery:
+    build: ./backend
+    container_name: intelligent_storage_celery
+    command: celery -A core worker --loglevel=info
+    volumes:
+      - ./backend:/app
+      - media_files:/app/media
+    environment:
+      - POSTGRES_NAME=intelligent_storage_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres123
+      - POSTGRES_HOST=postgres
+      - MONGODB_HOST=mongodb
+      - MONGODB_PORT=27017
+      - MONGODB_USER=admin
+      - MONGODB_PASSWORD=admin123
+      - MONGODB_DB=intelligent_storage_nosql
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - OLLAMA_HOST=http://host.docker.internal:11434
+      - OLLAMA_MODEL=llama3:latest
+    depends_on:
+      - redis
+      - postgres
+      - mongodb
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # React Frontend
+  frontend:
+    build: ./frontend
+    container_name: intelligent_storage_frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  mongodb_data:
+  redis_data:
+  media_files:

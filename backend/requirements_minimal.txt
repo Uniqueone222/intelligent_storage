@@ -1,0 +1,23 @@
+# Core Django
+Django>=5.0
+djangorestframework>=3.14
+django-cors-headers>=4.3
+
+# Databases
+psycopg2-binary
+pymongo
+pgvector
+
+# File handling
+python-magic
+Pillow
+PyPDF2
+python-docx
+beautifulsoup4
+
+# AI/ML
+requests
+
+# Utilities
+python-dotenv
+jsonschema
