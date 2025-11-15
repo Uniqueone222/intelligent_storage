@@ -2,6 +2,30 @@
 
 A professional, AI-powered storage system that intelligently processes and organizes any type of data with a unified frontend interface.
 
+## 🐳 Quick Start with Docker (Recommended)
+
+**Works on Windows, Mac, and Linux with ONE command!**
+
+### Windows
+```cmd
+git clone https://github.com/yourusername/intelligent_storage.git
+cd intelligent_storage
+start.bat
+```
+
+### Linux / macOS
+```bash
+git clone https://github.com/yourusername/intelligent_storage.git
+cd intelligent_storage
+./start.sh
+```
+
+**That's it!** Docker handles all dependencies automatically.
+
+📖 **Full Docker Guide**: See [DOCKER_README.md](DOCKER_README.md) for complete instructions.
+
+---
+
 ## Features
 
 ### Media File Management

@@ -23,7 +23,9 @@ ollama==0.1.6
 
 # Utilities
 python-dotenv==1.0.0
-python-magic==0.4.27
+# Cross-platform file type detection
+python-magic-bin==0.4.14; platform_system=='Windows'
+python-magic==0.4.27; platform_system!='Windows'
 celery==5.3.6
 redis==5.0.1
 

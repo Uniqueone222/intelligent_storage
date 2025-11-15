@@ -1,5 +1,10 @@
 version: '3.8'
 
+# ============================================================================
+# Docker Compose Configuration (CPU-only, no GPU)
+# Use this version for Windows or systems without NVIDIA GPU
+# ============================================================================
+
 services:
   # PostgreSQL Database (for SQL storage with pgvector extension)
   postgres:
@@ -39,7 +44,7 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # Ollama AI Service (for intelligent file analysis)
+  # Ollama AI Service (CPU-only mode)
   ollama:
     image: ollama/ollama:latest
     container_name: intelligent_storage_ollama
@@ -53,14 +58,7 @@ services:
       timeout: 10s
       retries: 3
     restart: unless-stopped
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    # For systems without GPU, remove the deploy section above
+    # CPU-only mode - no GPU configuration
 
   # Redis (for Celery task queue and caching)
   redis:
@@ -109,7 +107,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
 
-      # Ollama Settings (now using ollama service in Docker)
+      # Ollama Settings (using ollama service in Docker)
       - OLLAMA_HOST=http://ollama:11434
       - OLLAMA_MODEL=llama3:latest
 
@@ -141,7 +139,7 @@ services:
       sh -c "
       echo 'Waiting for Ollama service to be ready...';
       sleep 10;
-      echo 'Pulling llama3 model...';
+      echo 'Pulling llama3 model (this may take 5-10 minutes)...';
       ollama pull llama3:latest || true;
       echo 'Pulling llama3.2-vision model for image analysis...';
       ollama pull llama3.2-vision || true;

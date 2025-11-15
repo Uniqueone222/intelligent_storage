@@ -190,8 +190,8 @@ class UnifiedFileUploadView(APIView):
         file_extension = os.path.splitext(uploaded_file.name)[1].lower()
         content_type = uploaded_file.content_type or 'application/octet-stream'
 
-        # Determine file type using organizer
-        file_type = file_organizer._get_file_type(content_type, file_extension)
+        # Determine file type from MIME type and extension
+        file_type = self._detect_file_type_from_mime(content_type, file_extension)
 
         # Get organized path
         relative_path = file_organizer.get_organized_path(file_type, uploaded_file.name)
@@ -211,12 +211,17 @@ class UnifiedFileUploadView(APIView):
         # Get AI analysis (if available)
         ai_result = self._analyze_with_ai(absolute_path, file_type, user_comment)
 
+        # Convert file type to plural for database (legacy compatibility)
+        file_type_plural = file_type + 's' if file_type != 'audio' else 'audio'
+        if file_type == 'compressed':
+            file_type_plural = 'compressed'
+
         # Create database record
         media_file = MediaFile.objects.create(
             original_name=uploaded_file.name,
             file_path=absolute_path,
             file_size=file_size,
-            detected_type=file_type,
+            detected_type=file_type_plural,
             mime_type=content_type,
             file_extension=file_extension,
             magic_description=f'{file_type} file',
@@ -225,7 +230,7 @@ class UnifiedFileUploadView(APIView):
             ai_tags=ai_result.get('tags', []),
             ai_description=ai_result.get('description'),
             user_comment=user_comment,
-            storage_category=file_type,
+            storage_category=file_type_plural,
             storage_subcategory=ai_result.get('subcategory', 'general'),
             relative_path=relative_path,
         )
@@ -236,7 +241,7 @@ class UnifiedFileUploadView(APIView):
     def _analyze_with_ai(self, file_path, file_type, user_comment):
         """Analyze file with AI if available."""
         try:
-            if file_type == 'images':
+            if file_type == 'image':
                 return ai_analyzer.analyze_image(file_path, user_comment)
             else:
                 return ai_analyzer.analyze_file_content(
@@ -263,3 +268,45 @@ class UnifiedFileUploadView(APIView):
             logger.info(f"File indexed: {media_file.original_name} to store {store.name}")
         except Exception as e:
             logger.warning(f"Indexing failed: {str(e)}")
+
+    def _detect_file_type_from_mime(self, mime_type, extension):
+        """Detect file type from MIME type and extension."""
+        mime_lower = mime_type.lower()
+        ext_lower = extension.lower()
+
+        # Image files
+        if mime_lower.startswith('image/') or ext_lower in ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.ico']:
+            return 'image'
+
+        # Video files
+        if mime_lower.startswith('video/') or ext_lower in ['.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv', '.wmv']:
+            return 'video'
+
+        # Audio files
+        if mime_lower.startswith('audio/') or ext_lower in ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a', '.wma']:
+            return 'audio'
+
+        # Document files
+        if 'pdf' in mime_lower or 'document' in mime_lower or 'text' in mime_lower or 'spreadsheet' in mime_lower:
+            return 'document'
+        if ext_lower in ['.pdf', '.doc', '.docx', '.txt', '.md', '.rtf', '.odt', '.xls', '.xlsx', '.csv', '.ppt', '.pptx']:
+            return 'document'
+
+        # Code files
+        if ext_lower in ['.py', '.js', '.html', '.css', '.java', '.cpp', '.c', '.h', '.go', '.rs', '.rb', '.php',
+                         '.swift', '.kt', '.ts', '.jsx', '.tsx', '.vue', '.sql', '.sh', '.bat', '.json', '.xml',
+                         '.yaml', '.yml']:
+            return 'code'
+
+        # Compressed files
+        if 'zip' in mime_lower or 'compressed' in mime_lower or 'archive' in mime_lower:
+            return 'compressed'
+        if ext_lower in ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.xz', '.tar.gz', '.tgz']:
+            return 'compressed'
+
+        # Program files
+        if ext_lower in ['.exe', '.msi', '.app', '.deb', '.rpm', '.dmg', '.apk']:
+            return 'program'
+
+        # Default to other
+        return 'other'
