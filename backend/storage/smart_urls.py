@@ -5,12 +5,21 @@ URL Configuration for Smart Upload System
 from django.urls import path
 from . import smart_upload_views as views
 from . import advanced_json_views as adv_views
+from . import user_auth
 
 urlpatterns = [
-    # Authentication endpoints
+    # Admin authentication endpoints
     path('auth/login', views.admin_login, name='admin_login'),
     path('auth/create', views.admin_create, name='admin_create'),
     path('auth/logout', views.admin_logout, name='admin_logout'),
+
+    # User authentication endpoints
+    path('users/register', user_auth.user_register, name='user_register'),
+    path('users/login', user_auth.user_login, name='user_login'),
+    path('users/logout', user_auth.user_logout, name='user_logout'),
+    path('users/profile', user_auth.user_profile, name='user_profile'),
+    path('users/profile/update', user_auth.update_profile, name='update_profile'),
+    path('users/change-password', user_auth.change_password, name='change_password'),
 
     # JSON upload and analysis
     path('upload/json', views.upload_json, name='upload_json'),

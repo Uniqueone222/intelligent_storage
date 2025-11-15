@@ -34,5 +34,8 @@ jsonschema==4.21.1
 marshmallow==3.20.2
 ijson==3.2.3  # Streaming JSON parser for large files
 
+# Authentication
+PyJWT==2.8.0  # JWT tokens for user authentication
+
 # Monitoring & Logging
 django-extensions==3.2.3

@@ -1,7 +1,126 @@
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from pgvector.django import VectorField
 import uuid
+
+
+class UserManager(BaseUserManager):
+    """Custom user manager for User model"""
+
+    def create_user(self, email, username, password=None, **extra_fields):
+        """Create and save a regular user"""
+        if not email:
+            raise ValueError('Users must have an email address')
+        if not username:
+            raise ValueError('Users must have a username')
+
+        email = self.normalize_email(email)
+        user = self.model(email=email, username=username, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+
+    def create_superuser(self, email, username, password=None, **extra_fields):
+        """Create and save a superuser"""
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+        extra_fields.setdefault('is_active', True)
+
+        return self.create_user(email, username, password, **extra_fields)
+
+
+class User(AbstractBaseUser, PermissionsMixin):
+    """
+    Custom User model for multi-user authentication and storage isolation
+
+    Each user has their own isolated storage space for:
+    - JSON documents
+    - Media files
+    - RAG documents
+    - File search stores
+    """
+    # Identification
+    user_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
+    username = models.CharField(max_length=150, unique=True, db_index=True)
+    email = models.EmailField(max_length=255, unique=True, db_index=True)
+
+    # Profile
+    full_name = models.CharField(max_length=255, blank=True, null=True)
+    phone = models.CharField(max_length=20, blank=True, null=True)
+
+    # Storage quota (in bytes)
+    storage_quota = models.BigIntegerField(
+        default=5368709120,  # 5 GB default
+        help_text="Total storage quota in bytes"
+    )
+    storage_used = models.BigIntegerField(
+        default=0,
+        help_text="Current storage used in bytes"
+    )
+
+    # Account status
+    is_active = models.BooleanField(default=True)
+    is_staff = models.BooleanField(default=False)
+    is_verified = models.BooleanField(default=False)
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    last_login = models.DateTimeField(null=True, blank=True)
+
+    # Profile metadata
+    metadata = models.JSONField(default=dict, blank=True)
+
+    # Override groups and user_permissions to avoid clash with Django's built-in User
+    groups = models.ManyToManyField(
+        'auth.Group',
+        verbose_name='groups',
+        blank=True,
+        help_text='The groups this user belongs to.',
+        related_name='storage_users',
+        related_query_name='storage_user',
+    )
+    user_permissions = models.ManyToManyField(
+        'auth.Permission',
+        verbose_name='user permissions',
+        blank=True,
+        help_text='Specific permissions for this user.',
+        related_name='storage_users',
+        related_query_name='storage_user',
+    )
+
+    objects = UserManager()
+
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['username']
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['email']),
+            models.Index(fields=['username']),
+            models.Index(fields=['user_id']),
+            models.Index(fields=['is_active']),
+        ]
+
+    def __str__(self):
+        return f"{self.username} ({self.email})"
+
+    @property
+    def storage_used_percentage(self):
+        """Percentage of quota used"""
+        if self.storage_quota == 0:
+            return 0
+        return (self.storage_used / self.storage_quota) * 100
+
+    def is_quota_exceeded(self):
+        """Check if storage quota is exceeded"""
+        return self.storage_used > self.storage_quota
+
+    def has_storage_space(self, required_bytes):
+        """Check if user has enough storage space"""
+        return (self.storage_used + required_bytes) <= self.storage_quota
 
 
 class FileSearchStore(models.Model):
@@ -9,6 +128,16 @@ class FileSearchStore(models.Model):
     Persistent container for organizing documents and their embeddings.
     Similar to Gemini's File Search Store concept.
     """
+    # Owner
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='file_search_stores',
+        null=True,
+        blank=True,
+        help_text="Owner of this file search store"
+    )
+
     # Identification
     store_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     name = models.CharField(max_length=255, unique=True, help_text="Unique store name")
@@ -92,6 +221,16 @@ class MediaFile(models.Model):
     """
     Represents an uploaded media file with comprehensive metadata.
     """
+    # Owner
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='media_files',
+        null=True,
+        blank=True,
+        help_text="Owner of this media file"
+    )
+
     # File Search Store association
     file_search_store = models.ForeignKey(
         FileSearchStore,
@@ -163,6 +302,16 @@ class JSONDataStore(models.Model):
     """
     Tracks JSON data storage in either SQL or NoSQL database.
     """
+    # Owner
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='json_data_stores',
+        null=True,
+        blank=True,
+        help_text="Owner of this JSON data store"
+    )
+
     # Identification
     name = models.CharField(max_length=255, unique=True)
     description = models.TextField(blank=True, null=True)
